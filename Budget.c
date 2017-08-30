@@ -22,10 +22,14 @@
                "\n\t 4) Delete spending category" \
                "\n\t 5) View spending report" \
                "\n\t 6) Export spending report" \
-               "\n\t 7) Exit Program"
+               "\n\t 7) Exit Program" \
+               "\n >> " 
 #define TOO_MANY_ARGS "Error: too many arguments" 
 #define NO_FILE "Error: file does not exist" 
 #define NO_OPTION "Error: %s is not a valid option :-(\n\n" 
+#define NEW_CATEGORY "Enter name of new category (max 20 characters): "
+#define OVER_LIMIT "%s is too long. (%d max character limit)\n"
+#define NO_MEM "Error: no more memory\n" 
 
 #define BASE 10
 #define NOFILE_ARG 1
@@ -98,6 +102,43 @@ int validate_options( const char *strInput ) {
   }
 }
 
+/**
+ * Function: addCategory() 
+ * Parameters: numCategories - the number of categories in this spending report
+ *             catArray - the array of struct Categories 
+ * Description: adds category to array and updates spending report 
+ * Return: 0 if successful, -1 if name invalid, -2 if no more memory 
+ * Error condition: name of category is 0 or over 20 characters 
+ */ 
+struct Category *addCategory( int numCategories, struct Category *catArray[] ) {
+  char *categoryName = malloc( BUFSIZ );
+
+  // prompt user 
+  fprintf( stdout, "%s", NEW_CATEGORY ); 
+
+  // get new category name 
+  fgets( categoryName, BUFSIZ, stdin );
+
+  // check length of name
+  if( strlen( categoryName ) < 1 || strlen( categoryName ) > MAX_CATEGORIES ) {
+    return NULL; 
+  }
+
+  // create new category  
+  struct Category *newCategory = malloc( sizeof(struct Category)); 
+
+  // return -1 if no more memory 
+  if( newCategory == NULL ) { 
+    return NULL; 
+  }
+
+  // put name information in new struct, then put it in array of structs
+  newCategory->name = categoryName; 
+  catArray[numCategories] = newCategory; 
+
+  return newCategory; 
+}
+
 /** 
  * Function: main( int argc, char* argv[] ) 
  * Parameters: argc - the number of args 
@@ -111,6 +152,7 @@ int main( int argc, char* argv[] ) {
   // for existing spending reports 
   FILE *filePath;
   struct Category *categories[MAX_CATEGORIES];
+  int numCategories = 0; 
   char *input; 
   int option;
 
@@ -122,7 +164,7 @@ int main( int argc, char* argv[] ) {
 
   // prompt user and get input
   fprintf( stdout, "%s\n", INIT_PROMPT );
-  fprintf( stdout, "%s\n", PROMPT );
+  fprintf( stdout, "%s", PROMPT );
   fgets( input, BUFSIZ, stdin );
 
   // while input is valid, do action and prompt again
@@ -139,8 +181,13 @@ int main( int argc, char* argv[] ) {
     } else {
       switch( option ) {
         case 1: 
-          // add spending category
-          printf("option 1");
+          //add spending category
+          if( addCategory( numCategories, categories ) == NULL ) {
+            fprintf( stdout, OVER_LIMIT, "Category name", MAX_CATEGORIES ); 
+            break; 
+          }
+
+          numCategories++; 
           break; 
         case 2:
           // add amount to spending category
@@ -169,7 +216,7 @@ int main( int argc, char* argv[] ) {
     }
 
     // reprompt
-    fprintf( stdout, "%s\n", PROMPT );
+    fprintf( stdout, "%s", PROMPT );
     fgets( input, BUFSIZ, stdin );
   }
 

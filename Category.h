@@ -5,8 +5,8 @@
  * struct Category with two members 
  */
 struct Category { 
-  char* name;
-  int amount; 
+  char *name;
+  long amount; 
 };
 
 #endif //CATEGORY_H 
