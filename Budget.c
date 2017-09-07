@@ -27,6 +27,7 @@
 #define NEW_CATEGORY "Enter name of new category (max 20 characters): "
 #define FIND_CATEGORY "Enter name of the category you want to edit: "
 #define NEW_AMOUNT "Enter the amount you want to log into %s: " 
+#define REM_AMOUNT "Enter the amount you want to remove from %s: " 
 #define TOO_MANY_ARGS "Error: too many arguments\n\n" 
 #define NO_FILE "Error: file does not exist\n\n" 
 #define NO_OPTION "Error: %s is not a valid option :-(\n\n" 
@@ -158,24 +159,43 @@ struct Category *addCategory( int numCategories, struct Category *catArray[] ) {
 }
 
 /**
- * Function: addAmount( int *total, struct Category *category ) 
+ * Function: alterAmount( float *total, int dollars, float cents, struct
+ * Category *category )
+ * Parameters: total - pointer to the running total 
+ *             dollars - int amount of dollars to add/subtract
+ *             cents - float amount of cents to add/subtract
+ *             category - category to add 
+ * Description: alters amount to an existing category 
+ * Return: void 
+ * Error Conditions: none 
+ */ 
+int alterAmount( float *total, int dollars, float cents, struct Category
+    *category ) {
+  // add to category amount and running total 
+  category->amount = category->amount + (float) dollars + ( cents / 100.00 );  
+  *total = *total + category->amount; 
+
+  return 0;
+}
+
+/**
+ * Function: addAmount( int *total, struct Category *category, int mode ) 
  * Parameters: category - the category to add money into 
  *             total - addy to total spending budget
+ *             mode - 0 for add amount, 1 for subtract amount
  * Description: prompts user and adds spending amount to a 
  *              specified spending category 
  * Return: 0 if successful, -1 if not 
  * Error Conditions: if it aint a numba
  */
-int addAmount( float *total, struct Category *category ) { 
+int askAmount( float *total, struct Category *category, int mode ) { 
   char *endPtr; 
   char *newlineChar;
   char *decimal;
   char *amountStr = malloc( BUFSIZ ); 
   int dollars; 
-  float cents; 
+  float cents = 0; 
 
-  // prompt user to enter an amount 
-  fprintf( stdout, NEW_AMOUNT, category->name ); 
   fgets( amountStr, BUFSIZ, stdin ); 
 
   // remove newline character
@@ -191,7 +211,6 @@ int addAmount( float *total, struct Category *category ) {
 
     // read dollars, check for error
     dollars = (int) strtol( amountStr, &endPtr, BASE ); 
-    printf("%d dollars ", dollars );
     if( *endPtr != '\0' ) {
       fprintf( stdout, NO_LONG, amountStr ); 
       return -1;
@@ -204,31 +223,26 @@ int addAmount( float *total, struct Category *category ) {
       fprintf( stdout, NO_LONG, amountStr ); 
       return -1; 
     } 
-
-    // add to category amount and running total 
-    category->amount = category->amount + (float) dollars + ( cents / 100.00 );  
-    *total = *total + category->amount; 
-
-    free( amountStr ); 
-
-    return 0; 
   }
 
-  // convert amount to long 
+  // otherwise, just convert dollars 
   dollars = strtol( amountStr, &endPtr, BASE ); 
   if( *endPtr != '\0' ) { 
     fprintf( stdout, NO_LONG, amountStr ); 
     return -1; 
-  } else { 
-    category->amount = category->amount + dollars; 
   } 
 
-  // add to running total 
-  *total = *total + dollars; 
+  // either adds or subtracts amount from category depending on mode 
+  if( mode == 0 ) { 
+    alterAmount( total, dollars, cents, category ); 
+  } else {
+    dollars = 0 - dollars; 
+    cents = 0 - cents; 
+    alterAmount( total, dollars, cents, category ); 
+  }
 
   free( amountStr ); 
-
-  return 0;
+  return 0; 
 }
 
 /**
@@ -319,7 +333,8 @@ int main( int argc, char* argv[] ) {
           }
 
           // asks user to input spending amount to new category 
-          addAmount( &runningTotal, newCat ); 
+          fprintf( stdout, NEW_AMOUNT, newCat->name ); 
+          askAmount( &runningTotal, newCat, 0 ); 
 
           // increase number of Categories
           numCategories++; 
@@ -330,20 +345,41 @@ int main( int argc, char* argv[] ) {
 
           // prompt user 
           fprintf( stdout, FIND_CATEGORY ); 
-          fgets( input, BUFSIZ, stdin); 
+          fgets( input, BUFSIZ, stdin ); 
 
           exisCat = findCategory( numCategories, input, categories ); 
           if( exisCat != NULL ) { 
-            addAmount( &runningTotal, exisCat ); 
+
+            // prompt user to enter an amount 
+            fprintf( stdout, NEW_AMOUNT, exisCat->name ); 
+            askAmount( &runningTotal, exisCat, 0 ); 
           } else { 
             fprintf( stdout, NO_CATEGORY ); 
           } 
+
+          free( input ); 
           break;
 
-        case 3:
-          // decrease amount to spending category
-          printf("option 3");
+        case 3: // decrease amount to spending category 
+          input = malloc( BUFSIZ ); 
+
+          // prompt user 
+          fprintf( stdout, FIND_CATEGORY ); 
+          fgets( input, BUFSIZ, stdin ); 
+
+          exisCat = findCategory( numCategories, input, categories ); 
+          if( exisCat != NULL ) {
+              
+            // prompt user to enter an amount 
+            fprintf( stdout, REM_AMOUNT, exisCat->name ); 
+            askAmount( &runningTotal, exisCat, 1 ); 
+          } else {
+            fprintf( stdout, NO_CATEGORY ); 
+          }
+
+          free( input ); 
           break; 
+
         case 4:
           // delete spending category
           printf("option 4");
