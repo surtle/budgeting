@@ -24,12 +24,16 @@
                "\n\t 6) Export spending report" \
                "\n\t 7) Exit Program" \
                "\n >> " 
-#define TOO_MANY_ARGS "Error: too many arguments" 
-#define NO_FILE "Error: file does not exist" 
-#define NO_OPTION "Error: %s is not a valid option :-(\n\n" 
 #define NEW_CATEGORY "Enter name of new category (max 20 characters): "
-#define OVER_LIMIT "%s is too long. (%d max character limit)\n"
-#define NO_MEM "Error: no more memory\n" 
+#define FIND_CATEGORY "Enter name of the category you want to edit: "
+#define NEW_AMOUNT "Enter the amount you want to log into %s: " 
+#define TOO_MANY_ARGS "Error: too many arguments\n\n" 
+#define NO_FILE "Error: file does not exist\n\n" 
+#define NO_OPTION "Error: %s is not a valid option :-(\n\n" 
+#define NO_CATEGORY "Error: category not found\n\n" 
+#define NO_LONG "Error: %s is not a valid amount\n\n" 
+#define OVER_LIMIT "Error: %s is too long. (%d max character limit)\n\n"
+#define NO_MEM "Error: no more memory\n\n" 
 
 #define BASE 10
 #define NOFILE_ARG 1
@@ -112,6 +116,7 @@ int validate_options( const char *strInput ) {
  */ 
 struct Category *addCategory( int numCategories, struct Category *catArray[] ) {
   char *categoryName = malloc( BUFSIZ );
+  char *newlineChar; 
 
   // prompt user 
   fprintf( stdout, "%s", NEW_CATEGORY ); 
@@ -121,6 +126,7 @@ struct Category *addCategory( int numCategories, struct Category *catArray[] ) {
 
   // check length of name
   if( strlen( categoryName ) < 1 || strlen( categoryName ) > MAX_CATEGORIES ) {
+    fprintf( stdout, OVER_LIMIT, "Category name", MAX_CATEGORIES ); 
     return NULL; 
   }
 
@@ -129,14 +135,134 @@ struct Category *addCategory( int numCategories, struct Category *catArray[] ) {
 
   // return -1 if no more memory 
   if( newCategory == NULL ) { 
+    fprintf( stdout, NO_MEM ); 
     return NULL; 
   }
 
+  // replaces newline character in category name with null terminating character
+  newlineChar = memchr( categoryName, (int) '\n', BUFSIZ ); 
+  *newlineChar = '\0';
+
+  // convert name to all caps
+  int i;
+  for( i = 0; i < strlen( categoryName ); i++ ) {
+    categoryName[i] = toupper( categoryName[i] ); 
+  } 
+
   // put name information in new struct, then put it in array of structs
   newCategory->name = categoryName; 
+  newCategory->amount = 0;
   catArray[numCategories] = newCategory; 
 
   return newCategory; 
+}
+
+/**
+ * Function: addAmount( int *total, struct Category *category ) 
+ * Parameters: category - the category to add money into 
+ *             total - addy to total spending budget
+ * Description: prompts user and adds spending amount to a 
+ *              specified spending category 
+ * Return: 0 if successful, -1 if not 
+ * Error Conditions: if it aint a numba
+ */
+int addAmount( float *total, struct Category *category ) { 
+  char *endPtr; 
+  char *newlineChar;
+  char *decimal;
+  char *amountStr = malloc( BUFSIZ ); 
+  int dollars; 
+  float cents; 
+
+  // prompt user to enter an amount 
+  fprintf( stdout, NEW_AMOUNT, category->name ); 
+  fgets( amountStr, BUFSIZ, stdin ); 
+
+  // remove newline character
+  newlineChar = memchr( amountStr, (int) '\n', BUFSIZ ); 
+  *newlineChar = '\0';
+
+  // checks if there is a decimal point
+  if( memchr( amountStr, (int) '.', BUFSIZ ) != NULL ) {
+
+    // replace decimal with null terminator 
+    decimal = memchr( amountStr, (int) '.', BUFSIZ ); 
+    *decimal = '\0'; 
+
+    // read dollars, check for error
+    dollars = (int) strtol( amountStr, &endPtr, BASE ); 
+    printf("%d dollars ", dollars );
+    if( *endPtr != '\0' ) {
+      fprintf( stdout, NO_LONG, amountStr ); 
+      return -1;
+    }
+    
+    // read cents, check for error
+    endPtr = endPtr + 1; 
+    cents = strtol( endPtr, &endPtr, BASE );
+    if( *endPtr != '\0' ) {
+      fprintf( stdout, NO_LONG, amountStr ); 
+      return -1; 
+    } 
+
+    // add to category amount and running total 
+    category->amount = category->amount + (float) dollars + ( cents / 100.00 );  
+    *total = *total + category->amount; 
+
+    free( amountStr ); 
+
+    return 0; 
+  }
+
+  // convert amount to long 
+  dollars = strtol( amountStr, &endPtr, BASE ); 
+  if( *endPtr != '\0' ) { 
+    fprintf( stdout, NO_LONG, amountStr ); 
+    return -1; 
+  } else { 
+    category->amount = category->amount + dollars; 
+  } 
+
+  // add to running total 
+  *total = *total + dollars; 
+
+  free( amountStr ); 
+
+  return 0;
+}
+
+/**
+ * Function: findCategory( int numCat, char *categoryName,
+ *                         struct Category *catArr[] ) 
+ * Parameters: numCat - the number of category entries in the array  
+ *             categoryName - the name of the category to find
+ *             catArr - the array of categories 
+ * Description: returns the category found from the category array
+ * Return: pointer to Category if found, NULL if not found
+ * Error Conditions: None
+ */ 
+struct Category *findCategory( int numCat, char *categoryName, 
+                               struct Category *catArr[] ) {
+  int i;
+  char *newlineChar; 
+
+  // replace newline character with null terminating character 
+  newlineChar = memchr( categoryName, (int) '\n', BUFSIZ ); 
+  *newlineChar = '\0'; 
+
+  // convert input to all caps
+  for( i = 0; i < strlen(categoryName); i++ ) {
+    categoryName[i] = toupper( categoryName[i] ); 
+  } 
+
+  // search for equals 
+  for( i = 0; i < numCat; i++ ) {
+    if( strncmp( catArr[i]->name, categoryName, MAX_CATEGORIES ) == 0 ) {
+      return catArr[i];
+    }
+  }
+
+  return NULL; 
 }
 
 /** 
@@ -144,7 +270,7 @@ struct Category *addCategory( int numCategories, struct Category *catArray[] ) {
  * Parameters: argc - the number of args 
  *             argv - the arguments inputted
  * Description: runs the program
- * Return: 0 if successful, -1 if not
+ * Return: EXIT_SUCCESS if successful, EXIT_FAILURE if not
  * Error Conditions: invalid parameters, idk
  */
 int main( int argc, char* argv[] ) {
@@ -153,7 +279,8 @@ int main( int argc, char* argv[] ) {
   FILE *filePath;
   struct Category *categories[MAX_CATEGORIES];
   int numCategories = 0; 
-  char *input; 
+  float runningTotal = 0; 
+  char *input = malloc( BUFSIZ ); 
   int option;
 
   // Checks validity of arguments 
@@ -179,20 +306,40 @@ int main( int argc, char* argv[] ) {
 
     // perform necessary command according to option sensei
     } else {
+      struct Category *newCat; 
+      struct Category *exisCat; 
+      char *input; 
+
       switch( option ) {
-        case 1: 
-          //add spending category
-          if( addCategory( numCategories, categories ) == NULL ) {
-            fprintf( stdout, OVER_LIMIT, "Category name", MAX_CATEGORIES ); 
+        case 1: // add spending category 
+
+          newCat = addCategory( numCategories, categories ); 
+          if( newCat == NULL ) {
             break; 
           }
 
+          // asks user to input spending amount to new category 
+          addAmount( &runningTotal, newCat ); 
+
+          // increase number of Categories
           numCategories++; 
           break; 
-        case 2:
-          // add amount to spending category
-          printf("option 2");
+
+        case 2: // add amount to spending category 
+          input = malloc( BUFSIZ ); 
+
+          // prompt user 
+          fprintf( stdout, FIND_CATEGORY ); 
+          fgets( input, BUFSIZ, stdin); 
+
+          exisCat = findCategory( numCategories, input, categories ); 
+          if( exisCat != NULL ) { 
+            addAmount( &runningTotal, exisCat ); 
+          } else { 
+            fprintf( stdout, NO_CATEGORY ); 
+          } 
           break;
+
         case 3:
           // decrease amount to spending category
           printf("option 3");
@@ -203,7 +350,13 @@ int main( int argc, char* argv[] ) {
           break;
         case 5:
           // view spending report
-          printf("option 5");
+          printf( "option 5\n" );
+
+          int i;
+          for( i = 0; i < numCategories; i++ ) {
+            fprintf( stdout, "%s\t\t%G\n", categories[i]->name,
+                categories[i]->amount ); 
+          }
           break; 
         case 6:
           // export spending report

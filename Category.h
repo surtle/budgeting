@@ -6,7 +6,7 @@
  */
 struct Category { 
   char *name;
-  long amount; 
+  float amount; 
 };
 
 #endif //CATEGORY_H 
