@@ -26,6 +26,7 @@
                "\n >> " 
 #define NEW_CATEGORY "Enter name of new category (max 20 characters): "
 #define FIND_CATEGORY "Enter name of the category you want to edit: "
+#define REM_CATEGORY "Enter name of the category you want to remove: " 
 #define NEW_AMOUNT "Enter the amount you want to log into %s: " 
 #define REM_AMOUNT "Enter the amount you want to remove from %s: " 
 #define TOO_MANY_ARGS "Error: too many arguments\n\n" 
@@ -279,6 +280,27 @@ struct Category *findCategory( int numCat, char *categoryName,
   return NULL; 
 }
 
+/**
+ * Function: removeCategory( struct Category *remCategory, struct Category
+ * *catArr[], int numCategories ) 
+ * Parameters: remCategory - the category to remove from array
+ *             catArr - array of categories 
+ *             numCategories - number of total categories 
+ * Description: removes category from array of categories
+ * Return: void
+ * Error Conditions: none
+ */
+void removeCategory( struct Category *remCategory, struct Category *catArr[],
+                     int *numCategories ) { 
+  
+  // replace category to remove with last category
+  remCategory->name = catArr[*numCategories - 1]->name; 
+  remCategory->amount = catArr[*numCategories - 1]->amount; 
+
+  // decrease num of categories
+  (*numCategories)--; 
+}
+
 /** 
  * Function: main( int argc, char* argv[] ) 
  * Parameters: argc - the number of args 
@@ -380,10 +402,23 @@ int main( int argc, char* argv[] ) {
           free( input ); 
           break; 
 
-        case 4:
-          // delete spending category
-          printf("option 4");
+        case 4: // delete spending category 
+          input = malloc( BUFSIZ ); 
+
+          // prompt user 
+          fprintf( stdout, REM_CATEGORY ); 
+          fgets( input, BUFSIZ, stdin ); 
+
+          exisCat = findCategory( numCategories, input, categories ); 
+          if( exisCat != NULL ) {
+            removeCategory( exisCat, categories, &numCategories ); 
+          } else {
+            fprintf( stdout, NO_CATEGORY );
+          }
+
+          free( input ); 
           break;
+
         case 5:
           // view spending report
           printf( "option 5\n" );
