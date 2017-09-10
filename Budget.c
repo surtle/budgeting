@@ -22,27 +22,37 @@
                "\n\t 4) Delete spending category" \
                "\n\t 5) View spending report" \
                "\n\t 6) Export spending report" \
-               "\n\t 7) Exit Program" \
+               "\n\t 7) Exit program" \
                "\n >> " 
 #define NEW_CATEGORY "Enter name of new category (max 20 characters): "
 #define FIND_CATEGORY "Enter name of the category you want to edit: "
 #define REM_CATEGORY "Enter name of the category you want to remove: " 
 #define NEW_AMOUNT "Enter the amount you want to log into %s: " 
 #define REM_AMOUNT "Enter the amount you want to remove from %s: " 
+
 #define TOO_MANY_ARGS "Error: too many arguments\n\n" 
 #define NO_FILE "Error: file does not exist\n\n" 
 #define NO_OPTION "Error: %s is not a valid option :-(\n\n" 
 #define NO_CATEGORY "Error: category not found\n\n" 
 #define NO_LONG "Error: %s is not a valid amount\n\n" 
 #define OVER_LIMIT "Error: %s is too long. (%d max character limit)\n\n"
+#define NO_PRINT "Error: no data to show :-(\n\n" 
 #define NO_MEM "Error: no more memory\n\n" 
 
-#define BASE 10
-#define NOFILE_ARG 1
-#define FILE_ARG 2
-#define MAX_CATEGORIES 20
-#define MIN_OPTION 1
-#define MAX_OPTION 7 
+#define FORMAT_SEP "======================================================\n"
+#define FORMAT_HEADER "Budget Report for %s"  // Header for report
+#define FORMAT_CATEGORY "%-25s$%-8.2f%-4.2f%%\n" // Lists spending category
+#define FORMAT_TOTAL "%-25s%-4.2f\n"              // Lists total spending
+
+#define BASE 10                     // Base conversion for strtol
+#define NOFILE_ARG 1                // Flag if there is no file to scan
+#define FILE_ARG 2                  // Flag if there is a file to scan 
+#define MAX_CATEGORIES 20           // Max number of categories allowed
+#define MIN_OPTION 1                // First option given in prompt
+#define MAX_OPTION 7                // Last option given in prompt
+#define FORMAT_CATEGORY_WIDTH 25    // Format width for category name
+#define FORMAT_MONEY_WIDTH 8        // Format width for amount spent
+#define FORMAT_PERCENT_WIDTH 4      // Format width for percentage of total
 
 /**
  * Function: usage( int argc ) 
@@ -302,6 +312,41 @@ void removeCategory( struct Category *remCategory, struct Category *catArr[],
 }
 
 /** 
+ * Function: printData( int numCategories, int total, struct Category 
+ *                      *catArr[], FILE *stream ) 
+ * Parameters: numCategories - total number of categories recorded 
+ *             total - total amount of money spent
+ *             catArr - the array of categories
+ *             stream - where the report should be outputted
+ * Description: prints out the category data in a legible manner to the stream
+ *              specified
+ * Return: void
+ * Error Conditions: none
+ */ 
+void printData( int numCategories, int total, struct Category *catArr[], 
+                FILE *stream ) {
+  int i;
+
+  // beginning separator
+  fprintf( stream, "%s%s", "\n", FORMAT_SEP ); 
+
+  // prints each category and its respective statistics
+  for( i = 0; i < numCategories; i++ ) {
+    fprintf( stream, FORMAT_CATEGORY, catArr[i]->name,
+        catArr[i]->amount, ((catArr[i]->amount/total) * 100)); 
+  }
+
+  // newline buffer between categories and total
+  fprintf( stream, "%s", "\n" ); 
+
+  // print total spent
+  fprintf( stream, FORMAT_TOTAL, "TOTAL", total ); 
+
+  // end separator
+  fprintf( stream, "%s%s", FORMAT_SEP, "\n" ); 
+}
+
+/** 
  * Function: main( int argc, char* argv[] ) 
  * Parameters: argc - the number of args 
  *             argv - the arguments inputted
@@ -342,6 +387,7 @@ int main( int argc, char* argv[] ) {
 
     // perform necessary command according to option sensei
     } else {
+      int i;
       struct Category *newCat; 
       struct Category *exisCat; 
       char *input; 
@@ -419,16 +465,18 @@ int main( int argc, char* argv[] ) {
           free( input ); 
           break;
 
-        case 5:
-          // view spending report
-          printf( "option 5\n" );
+        case 5: // view spending report
+          
+          // error message if there are no categories to print
+          if( numCategories == 0 ) { 
+            fprintf( stdout, NO_PRINT ); 
 
-          int i;
-          for( i = 0; i < numCategories; i++ ) {
-            fprintf( stdout, "%s\t\t%G\n", categories[i]->name,
-                categories[i]->amount ); 
+          // print out data
+          } else { 
+            printData( numCategories, runningTotal, categories, stdout ); 
           }
           break; 
+
         case 6:
           // export spending report
           printf("option 6");
