@@ -29,6 +29,7 @@
 #define REM_CATEGORY "Enter name of the category you want to remove: " 
 #define NEW_AMOUNT "Enter the amount you want to log into %s: " 
 #define REM_AMOUNT "Enter the amount you want to remove from %s: " 
+#define NEW_FILENAME "Enter filename to save report under: " 
 
 #define TOO_MANY_ARGS "Error: too many arguments\n\n" 
 #define NO_FILE "Error: file does not exist\n\n" 
@@ -36,13 +37,16 @@
 #define NO_CATEGORY "Error: category not found\n\n" 
 #define NO_LONG "Error: %s is not a valid amount\n\n" 
 #define OVER_LIMIT "Error: %s is too long. (%d max character limit)\n\n"
-#define NO_PRINT "Error: no data to show :-(\n\n" 
+#define NO_PRINT "Error: no data to show\n\n" 
 #define NO_MEM "Error: no more memory\n\n" 
+#define BAD_FILE "Error: cannot read file\n\n" 
+
+#define FILE_IMPORTED "Success! %s imported\n\n" 
 
 #define FORMAT_SEP "======================================================\n"
 #define FORMAT_HEADER "Budget Report for %s"  // Header for report
-#define FORMAT_CATEGORY "%-25s$%-8.2f%-4.2f%%\n" // Lists spending category
-#define FORMAT_TOTAL "%-25s%-4.2f\n"              // Lists total spending
+#define FORMAT_CATEGORY "%-30s$%-16.2f%-4.2f%%\n" // Lists spending category
+#define FORMAT_TOTAL "%-30s$%-16.2f\n"              // Lists total spending
 
 #define BASE 10                     // Base conversion for strtol
 #define NOFILE_ARG 1                // Flag if there is no file to scan
@@ -50,10 +54,15 @@
 #define MAX_CATEGORIES 20           // Max number of categories allowed
 #define MIN_OPTION 1                // First option given in prompt
 #define MAX_OPTION 7                // Last option given in prompt
-#define FORMAT_CATEGORY_WIDTH 25    // Format width for category name
-#define FORMAT_MONEY_WIDTH 8        // Format width for amount spent
+#define FORMAT_CATEGORY_WIDTH 30    // Format width for category name
+#define FORMAT_MONEY_WIDTH 16       // Format width for amount spent
 #define FORMAT_PERCENT_WIDTH 4      // Format width for percentage of total
 
+#define FILE_WRITE "w"
+#define FILE_READ "r" 
+
+struct Category *findCategory( int numCat, char *categoryName, 
+                               struct Category *catArr[] );
 /**
  * Function: usage( int argc ) 
  * Parameters: argc - the number of arguments passed into the program
@@ -61,29 +70,29 @@
  * Return: 0 if valid, -1 if not
  * Error Conditions: invalid command line argument, invalid file
  */
-int usage( int argc, char* argv[], FILE *budgetAcct ) {
+int usage( int argc, char* argv[], FILE **budgetAcct ) {
   
   // set errno to 0
   errno = 0;
   
-  // if no arguments, prompt user for action
+  // if no file is specified, assign null to address and continue
   if( argc == NOFILE_ARG ) {
+    *budgetAcct = NULL;
     return 0;
 
   } else if ( argc == FILE_ARG ) {
     // open file specified in description 
-    budgetAcct = fopen( argv[1], "r" );
+    *budgetAcct = fopen( argv[1], "r" );
     
     // if file does not exist, return -1
-    if( budgetAcct == NULL || errno != 0 ) {
+    if( *budgetAcct == NULL || errno != 0 ) {
       fprintf( stdout, "%s\n", NO_FILE );
       return -1;
 
     } else {
-      // read file and import information
       return 0;
-
     }
+
   } else {
 
     // if too many arguments, return -1
@@ -111,6 +120,7 @@ int validate_options( const char *strInput ) {
   // convert string input into int 
   int input = (int) strtol( strInput, &endptr, BASE ); 
 
+  // return -1 if entry contains non-digits or is outside limits
   if( *endptr != '\0' || (input < MIN_OPTION || input > MAX_OPTION)) {
     return -1;
   } else { 
@@ -143,7 +153,7 @@ struct Category *addCategory( int numCategories, struct Category *catArray[] ) {
   }
 
   // create new category  
-  struct Category *newCategory = malloc( sizeof(struct Category)); 
+  struct Category *newCategory = malloc( sizeof(struct Category) ); 
 
   // return -1 if no more memory 
   if( newCategory == NULL ) { 
@@ -170,6 +180,22 @@ struct Category *addCategory( int numCategories, struct Category *catArray[] ) {
 }
 
 /**
+ * Function: convertCents( float cents ) 
+ * Parameters: cents - float larger than 1 representing cents
+ * Description: helper function for alterAmount that converts cents from number
+ * larger than 1 to number less than 1
+ * Return: converted cents as a float
+ * Error Conditions: none
+ */ 
+float convertCents( float cents ) {
+  while( cents > 1 ) { 
+    cents = cents / 10.0;
+  }
+
+  return cents;
+} 
+
+/**
  * Function: alterAmount( float *total, int dollars, float cents, struct
  * Category *category )
  * Parameters: total - pointer to the running total 
@@ -183,21 +209,21 @@ struct Category *addCategory( int numCategories, struct Category *catArray[] ) {
 int alterAmount( float *total, int dollars, float cents, struct Category
     *category ) {
   // add to category amount and running total 
-  category->amount = category->amount + (float) dollars + ( cents / 100.00 );  
-  *total = *total + category->amount; 
+  category->amount = category->amount + (float) dollars + convertCents( cents );
+  *total = *total + (float) dollars + convertCents( cents ); 
 
   return 0;
 }
 
 /**
- * Function: addAmount( int *total, struct Category *category, int mode ) 
+ * Function: askAmount( int *total, struct Category *category, int mode ) 
  * Parameters: category - the category to add money into 
  *             total - addy to total spending budget
  *             mode - 0 for add amount, 1 for subtract amount
  * Description: prompts user and adds spending amount to a 
  *              specified spending category 
  * Return: 0 if successful, -1 if not 
- * Error Conditions: if it aint a numba
+ * Error Conditions: if the amount entered is not a number
  */
 int askAmount( float *total, struct Category *category, int mode ) { 
   char *endPtr; 
@@ -247,6 +273,8 @@ int askAmount( float *total, struct Category *category, int mode ) {
   if( mode == 0 ) { 
     alterAmount( total, dollars, cents, category ); 
   } else {
+
+    // turn into negative versions of dollars and cents
     dollars = 0 - dollars; 
     cents = 0 - cents; 
     alterAmount( total, dollars, cents, category ); 
@@ -270,6 +298,11 @@ struct Category *findCategory( int numCat, char *categoryName,
                                struct Category *catArr[] ) {
   int i;
   char *newlineChar; 
+
+  // don't search if there are 0 categories
+  if( numCat == 0 ) { 
+    return NULL;
+  }
 
   // replace newline character with null terminating character 
   newlineChar = memchr( categoryName, (int) '\n', BUFSIZ ); 
@@ -296,12 +329,15 @@ struct Category *findCategory( int numCat, char *categoryName,
  * Parameters: remCategory - the category to remove from array
  *             catArr - array of categories 
  *             numCategories - number of total categories 
+ *             total - total amount of money spent
  * Description: removes category from array of categories
  * Return: void
  * Error Conditions: none
  */
 void removeCategory( struct Category *remCategory, struct Category *catArr[],
-                     int *numCategories ) { 
+                     int *numCategories, float *total ) { 
+  // subtract amount recorded in category from recorded total 
+  *total = *total - remCategory->amount; 
   
   // replace category to remove with last category
   remCategory->name = catArr[*numCategories - 1]->name; 
@@ -323,7 +359,7 @@ void removeCategory( struct Category *remCategory, struct Category *catArr[],
  * Return: void
  * Error Conditions: none
  */ 
-void printData( int numCategories, int total, struct Category *catArr[], 
+void printData( int numCategories, float total, struct Category *catArr[], 
                 FILE *stream ) {
   int i;
 
@@ -346,6 +382,144 @@ void printData( int numCategories, int total, struct Category *catArr[],
   fprintf( stream, "%s%s", FORMAT_SEP, "\n" ); 
 }
 
+/**
+ * Function: readFile( float *runningTotal, FILE *exisFile, struct Category
+ * *catArr[] ) 
+ * Parameters: exisFile - existing file that needs to be read 
+ *             runningTotal - pointer to the running total  
+ *             catArr - array of Categories to record information
+ * Description: reads and records data into categories
+ * Return: 0 if successful, 1 if not 
+ * Error Conditions: if file is unable to be read, not in correct format
+ */
+int readFile( int *categoryCount, float *runningTotal, FILE *exisFile, 
+              struct Category *catArr[] ) { 
+  char *newLine; 
+  char *separator; 
+  char *category; 
+
+  // grab newline from report 
+  newLine = malloc( BUFSIZ ); 
+  fgets( newLine, BUFSIZ, exisFile ); 
+  if( strncmp( newLine, "\n", BUFSIZ ) != 0 ) {
+
+    free( newLine );
+
+    return -1;
+  }
+
+  // grab separator
+  separator = malloc( BUFSIZ ); 
+  fgets( separator, BUFSIZ, exisFile ); 
+  if( strncmp( separator, FORMAT_SEP, BUFSIZ ) != 0 ) {
+
+    free( newLine ); 
+    free( separator ); 
+
+    return -1; 
+  }
+
+  // free newline and separator 
+  free( newLine );
+  free( separator ); 
+
+  // loop through categories specified and record them into array
+  category = malloc( BUFSIZ ); 
+  fgets( category, BUFSIZ, exisFile ); 
+  while( strncmp( category, "\n", BUFSIZ ) != 0 ) { 
+    
+    // keep track of temporary information 
+    struct Category *newCategory; 
+    char *catName = malloc( BUFSIZ ); 
+    strncpy( catName, strtok(category, " "), BUFSIZ ); 
+    //catName = strtok( category, " " ); 
+    char *amountStr = malloc( BUFSIZ );
+    amountStr = strtok( NULL, " " ); 
+
+    char *decimal; 
+    char *endPtr; 
+    int dollars = 0; 
+    float cents = 0; 
+
+    // allocate space for new category and record category name
+    if( catName != NULL ) {
+      newCategory = malloc( sizeof(struct Category) ); 
+      newCategory->name = catName; 
+      catArr[*categoryCount] = newCategory; 
+
+    } else { 
+      free( catName ); 
+      free( amountStr ); 
+      
+      return -1; 
+    }
+
+    // remove dollar sign and convert to dollars and cents
+    if( amountStr != NULL ) {
+      amountStr++; 
+      
+      // replace decimal with null terminator 
+      decimal = memchr( amountStr, (int) '.', BUFSIZ ); 
+      *decimal = '\0'; 
+
+      
+      // read dollars, check for error
+      dollars = (int) strtol( amountStr, &endPtr, BASE ); 
+      if( *endPtr != '\0' ) {
+        fprintf( stdout, NO_LONG, amountStr ); 
+        return -1;
+      }
+      
+      // read cents, check for error
+      endPtr = endPtr + 1; 
+      cents = strtol( endPtr, &endPtr, BASE );
+      if( *endPtr != '\0' ) {
+        fprintf( stdout, NO_LONG, amountStr ); 
+        return -1; 
+      } 
+
+      // record amount into array
+      alterAmount( runningTotal, dollars, cents, catArr[*categoryCount] );
+
+      // increment category count
+      (*categoryCount)++; 
+
+    } else {
+      free( catName ); 
+      free( amountStr ); 
+      free( newCategory ); 
+
+      return -1;
+    }
+    
+    // save next line in string category 
+    fgets( category, BUFSIZ, exisFile ); 
+    free( amountStr ); 
+  }
+
+  free( category ); 
+
+  return 0;
+}
+
+/**
+ * Function: freeMemory( int categoryCount, struct Category *catArray[] ) 
+ * Parameters: categoryCount - the number of categories recorded
+ *             catArray - the array of categories
+ * Description: frees all memory allocated to category array starting with
+ * category names and then the struct categories themselves 
+ * Return: void
+ * Error Conditions: none
+ */
+void freeMemory( int categoryCount, struct Category *catArray[] ) {
+  int i;
+  
+  for( i = 0; i < categoryCount; i++ ) { 
+    free( catArray[i]->name );
+    free( catArray[i] ); 
+  }
+}
+
 /** 
  * Function: main( int argc, char* argv[] ) 
  * Parameters: argc - the number of args 
@@ -364,11 +538,22 @@ int main( int argc, char* argv[] ) {
   char *input = malloc( BUFSIZ ); 
   int option;
 
-  // Checks validity of arguments 
-  if( usage( argc, argv, filePath ) == -1 ) {
+  // checks validity of arguments 
+  if( usage( argc, argv, &filePath ) == -1 ) {
     fprintf( stderr, "%s\n", USAGE );
     return EXIT_FAILURE;
   }  
+
+  // import information from existing file, print error message and exit
+  // otherwise
+  if( filePath != NULL ) { 
+    if( readFile( &numCategories, &runningTotal, filePath, categories ) != 0 ) {
+      fprintf( stderr, BAD_FILE ); 
+      return EXIT_FAILURE;
+    } else {
+      fprintf( stdout, FILE_IMPORTED, argv[1] );  
+    }
+  }
 
   // prompt user and get input
   fprintf( stdout, "%s\n", INIT_PROMPT );
@@ -391,6 +576,8 @@ int main( int argc, char* argv[] ) {
       struct Category *newCat; 
       struct Category *exisCat; 
       char *input; 
+      char *newLine; 
+      FILE *newFile;
 
       switch( option ) {
         case 1: // add spending category 
@@ -457,7 +644,8 @@ int main( int argc, char* argv[] ) {
 
           exisCat = findCategory( numCategories, input, categories ); 
           if( exisCat != NULL ) {
-            removeCategory( exisCat, categories, &numCategories ); 
+            removeCategory( exisCat, categories, &numCategories, 
+                            &runningTotal ); 
           } else {
             fprintf( stdout, NO_CATEGORY );
           }
@@ -477,12 +665,26 @@ int main( int argc, char* argv[] ) {
           }
           break; 
 
-        case 6:
-          // export spending report
-          printf("option 6");
+        case 6: // export spending report
+          input = malloc( BUFSIZ ); 
+
+          // prompt user to enter a filename 
+          fprintf( stdout, NEW_FILENAME ); 
+          fgets( input, BUFSIZ, stdin ); 
+
+          // remove newline character from filename 
+          newLine = memchr( input, '\n', BUFSIZ ); 
+          *newLine = '\0'; 
+
+          // create new file and write report to it
+          newFile = fopen( input, FILE_WRITE );  
+          printData( numCategories, runningTotal, categories, newFile ); 
+
+          free( input );
           break;
-        case 7:
-          // return exit success 
+          
+        case 7: // free all allocated memory and return EXIT_SUCCESS
+          freeMemory( numCategories, categories );
           return EXIT_SUCCESS;
       }
     }
